@@ -1,0 +1,132 @@
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel("🎮 2-Player Click Speed Game"),
+  
+  h3(textOutput("turn_text")),
+  
+  actionButton("click_btn", "Click Me!", class = "btn-primary"),
+  
+  br(), br(),
+  
+  textOutput("timer_text"),
+  textOutput("score_text"),
+  
+  br(),
+  
+  actionButton("start_btn", "Start Game"),
+  actionButton("start_turn_btn", "Start Turn", class = "btn-success"),
+  
+  br(), br(),
+  
+  h2(textOutput("result_text"))
+)
+
+server <- function(input, output, session) {
+  
+  rv <- reactiveValues(
+    player = 1,         # 1 or 2
+    score1 = 0,
+    score2 = 0,
+    current_score = 0,
+    time_left = 10,
+    game_running = FALSE, # overall game started
+    turn_running = FALSE, # current player's turn
+    game_over = FALSE
+  )
+  
+  # Start Game (initializes everything)
+  observeEvent(input$start_btn, {
+    rv$player <- 1
+    rv$score1 <- 0
+    rv$score2 <- 0
+    rv$current_score <- 0
+    rv$time_left <- 10
+    rv$game_running <- TRUE
+    rv$turn_running <- FALSE
+    rv$game_over <- FALSE
+  })
+  
+  # Start Turn (each player clicks this to start their 10-second turn)
+  observeEvent(input$start_turn_btn, {
+    if (rv$game_running && !rv$turn_running && !rv$game_over) {
+      rv$current_score <- 0
+      rv$time_left <- 10
+      rv$turn_running <- TRUE
+    }
+  })
+  
+  # Clicking button increments score only during player's turn
+  observeEvent(input$click_btn, {
+    if (rv$turn_running) {
+      rv$current_score <- rv$current_score + 1
+    }
+  })
+  
+  # Timer countdown
+  observe({
+    invalidateLater(1000, session)
+    
+    isolate({
+      if (rv$turn_running && rv$time_left > 0) {
+        rv$time_left <- rv$time_left - 1
+      }
+      
+      # When time reaches 0
+      if (rv$turn_running && rv$time_left == 0) {
+        if (rv$player == 1) {
+          rv$score1 <- rv$current_score
+          rv$player <- 2
+          rv$turn_running <- FALSE
+        } else {
+          rv$score2 <- rv$current_score
+          rv$turn_running <- FALSE
+          rv$game_over <- TRUE
+        }
+      }
+    })
+  })
+  
+  # Turn text
+  output$turn_text <- renderText({
+    if (!rv$game_running && !rv$game_over) {
+      "Click Start Game to Begin"
+    } else if (!rv$turn_running && !rv$game_over) {
+      paste("Player", rv$player, "Click 'Start Turn' to Begin")
+    } else if (rv$turn_running) {
+      paste("Player", rv$player, "Turn")
+    }
+  })
+  
+  # Timer text
+  output$timer_text <- renderText({
+    if (rv$turn_running) {
+      paste("Time left:", rv$time_left)
+    } else if (!rv$turn_running && rv$game_over) {
+      "Game Over!"
+    }
+  })
+  
+  # Score text
+  output$score_text <- renderText({
+    if (rv$turn_running || rv$game_over) {
+      paste("Current Score:", rv$current_score)
+    }
+  })
+  
+  # Result text
+  output$result_text <- renderText({
+    if (rv$game_over) {
+      if (rv$score1 > rv$score2) {
+        paste("🎉 Player 1 Wins!", "Score:", rv$score1, "vs", rv$score2)
+      } else if (rv$score2 > rv$score1) {
+        paste("🎉 Player 2 Wins!", "Score:", rv$score2, "vs", rv$score1)
+      } else {
+        paste("🤝 It's a Tie!", "Score:", rv$score1, "vs", rv$score2)
+      }
+    }
+  })
+  
+}
+
+shinyApp(ui, server)
